@@ -23,6 +23,7 @@ import json
 import logging
 import numpy as np
 from collections import Counter
+from nltk.translate.bleu_score import sentence_bleu
 
 
 class BRCDataset(object):
@@ -74,13 +75,55 @@ class BRCDataset(object):
                 sample['question_tokens'] = sample['segmented_question']
 
                 sample['passages'] = []
+                reference = [sample['segmented_question']]
                 for d_idx, doc in enumerate(sample['documents']):
+                    #origin version
+                    # if train:
+                    #     most_related_para = doc['most_related_para']
+                    #     sample['passages'].append(
+                    #         {'passage_tokens': doc['segmented_paragraphs'][most_related_para],
+                    #          'is_selected': doc['is_selected']}
+                    #     )
+
+                    #select most related paragraphs by bleu-4
                     if train:
-                        most_related_para = doc['most_related_para']
-                        sample['passages'].append(
-                            {'passage_tokens': doc['segmented_paragraphs'][most_related_para],
-                             'is_selected': doc['is_selected']}
-                        )
+                        #set title
+                        paras = doc['segmented_title']
+                        scoreList = {}
+                        # <4: not able to bleu-4
+                        if len(reference[0] < 4:
+                            most_related_para = doc['most_related_para']
+                            sample['passages'].append(
+                                {'passage_tokens': doc['segmented_paragraphs'][most_related_para],
+                                 'is_selected': doc['is_selected']}
+                            )
+                        else:
+                            
+                            for paraId,para in enumerate(doc['segmented_paragraphs']):
+                                if len(para) < 4:
+                                    scoreList[paraId] = 0
+                                    continue
+                                score = sentence_bleu(reference,para)
+                                scoreList[paraId] = score
+                                if score == 0:
+                                    continue
+                                paras += para
+                                if len(paras) > self.max_p_len:
+                                    break    
+                            if len(paras) <= self.max_p_len:
+                                sample['passages'].append(
+                                    {'passage_tokens': paras,
+                                     'is_selected': doc['is_selected']}
+                                )
+                            else:
+                                sortedScoreList = sorted(scoreList.items(), key=lambda item:-item[1])
+                                for id2score in sortedScoreList.items():
+                                    paras += doc['segmented_paragraphs'][id2score[0]]
+                                paras = paras[:self.max_p_len-1]
+                                sample['passages'].append(
+                                        {'passage_tokens': paras,
+                                         'is_selected': doc['is_selected']}
+                                    )
                     else:
                         para_infos = []
                         for para_tokens in doc['segmented_paragraphs']:
